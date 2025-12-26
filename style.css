@@ -45,9 +45,6 @@ select#viewMode{ max-width: 220px; }
 }
 
 
-:root{ --uiScale: 1; }
-#appRoot{ transform: scale(var(--uiScale)); transform-origin: top left; width: calc(100% / var(--uiScale)); }
-
 .libList{ display:flex; flex-direction:column; gap:8px; }
 .libItem{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:12px; background:#141417; }
 .libMeta{ display:flex; flex-direction:column; gap:2px; min-width:0; }
@@ -72,3 +69,6 @@ select#viewMode{ max-width: 220px; }
 }
 .updateBar button{ padding:8px 10px; border-radius: 10px; }
 
+
+:root{ --roadH: 520px; }
+#lane{ height: var(--roadH); }

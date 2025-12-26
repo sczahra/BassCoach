@@ -220,10 +220,11 @@ if (speedEl) speedEl.addEventListener("input", ()=>{ getSpeedFactor();
 
 function applyUiScale() {
   const v = uiScaleEl ? parseInt(uiScaleEl.value,10) : 100;
-  const s = Math.max(70, Math.min(130, v)) / 100;
-  const root = document.getElementById("appRoot") || document.body;
-  try { root.style.zoom = String(s); } catch(e) {}
-  document.documentElement.style.setProperty("--uiScale", String(s));
+  const s = Math.max(60, Math.min(140, v)) / 100; // 0.60..1.40
+  // Road height scales relative to viewport but clamped
+  const base = Math.min(720, Math.max(420, Math.round(window.innerHeight * 0.62)));
+  const h = Math.round(base * s);
+  document.documentElement.style.setProperty("--roadH", `${h}px`);
   if (uiScaleReadout) uiScaleReadout.textContent = `${Math.round(s*100)}%`;
   setTimeout(() => { try { resizeCanvasToDisplaySize(); } catch(_){} }, 50);
 }
