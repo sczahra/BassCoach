@@ -1105,3 +1105,24 @@ document.addEventListener("DOMContentLoaded", () => {
   showTab(tab);
   if (tab === "library") refreshLibrary();
 });
+
+// Fullscreen toggle
+const btnFullscreen = document.getElementById("btnFullscreen");
+if (btnFullscreen) {
+  btnFullscreen.addEventListener("click", async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        document.body.classList.add("fullscreen");
+      } else {
+        await document.exitFullscreen();
+        document.body.classList.remove("fullscreen");
+      }
+      setTimeout(() => {
+        if (typeof resizeCanvasToDisplaySize === "function") resizeCanvasToDisplaySize();
+      }, 50);
+    } catch (e) {
+      console.warn(e);
+    }
+  });
+}
