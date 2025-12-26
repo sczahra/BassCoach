@@ -1,4 +1,24 @@
 
+
+// --- Update-safety mode (v23): disable offline caching to avoid stale builds ---
+(async () => {
+  try {
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const r of regs) await r.unregister();
+    }
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      for (const k of keys) {
+        if (k.startsWith("basscoach-") || k.startsWith("basscoach")) {
+          await caches.delete(k);
+        }
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+})();
 function roundRect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w/2, h/2);
   ctx.beginPath();
@@ -396,10 +416,7 @@ function loopPitch() {
 btnStartAudio.addEventListener("click", async () => {
   try {
     await startMic();
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
-    }
-  } catch (e) {
+} catch (e) {
     micStatus.textContent = "Mic: error";
     alert("Mic permission failed. Use the Netlify HTTPS URL in Safari, allow microphone, then reload and try again.");
   }
