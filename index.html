@@ -15,6 +15,11 @@
     <div class="row">
       <button id="btnStartAudio">Enable Mic</button>
       <span id="micStatus" class="badge">Mic: off</span>
+    <div id="updateBar" class="updateBar" hidden>
+      <span>Update available / cache stuck?</span>
+      <button id="btnUpdateNow">Reload</button>
+      <button id="btnUnregisterSW">Fix cache</button>
+    </div>
       <span id="jsStatus" class="badge">JS: …</span>
       <script>document.getElementById("jsStatus").textContent="JS: inline";</script>
       <span id="noteReadout" class="badge">—</span>
@@ -92,7 +97,6 @@
             <input id="audioFile" type="file" accept="audio/*" />
           </label>
           <button id="btnPlay">Play</button>
-      <button id="btnFullscreen">Fullscreen</button>
           <button id="btnPause">Pause</button>
           <button id="btnStop">Stop</button>
         </div>
@@ -223,4 +227,4 @@
 </body>
 </html>
 
-<div id="buildBadge" class="badge">Build v20 • 2025-12-26 22:32 UTC</div>
+<div id="buildBadge" class="badge">Build v21 • 2025-12-26 22:39 UTC</div>

@@ -72,8 +72,3 @@ select#viewMode{ max-width: 220px; }
 }
 .updateBar button{ padding:8px 10px; border-radius: 10px; }
 
-/* Fullscreen play mode */
-body.fullscreen header,
-body.fullscreen .controls,
-body.fullscreen .tabs { display:none !important; }
-body.fullscreen canvas { width:100vw !important; height:100vh !important; }

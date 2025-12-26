@@ -1,3 +1,14 @@
+
+function roundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr, y);
+  ctx.arcTo(x+w, y, x+w, y+h, rr);
+  ctx.arcTo(x+w, y+h, x, y+h, rr);
+  ctx.arcTo(x, y+h, x, y, rr);
+  ctx.arcTo(x, y, x+w, y, rr);
+  ctx.closePath();
+}
 import { autoCorrelateFloat32, freqToMidi, midiToFreq, midiToNoteName, centsOff } from "./pitch.js";
 const $ = (id) => document.getElementById(id);
 
@@ -208,22 +219,13 @@ function getSpeedFactor(){
 if (speedEl) speedEl.addEventListener("input", ()=>{ getSpeedFactor();
 
 function applyUiScale() {
-  const v = uiScaleEl ? parseInt(uiScaleEl.value, 10) : 100;
+  const v = uiScaleEl ? parseInt(uiScaleEl.value,10) : 100;
   const s = Math.max(70, Math.min(130, v)) / 100;
-
-  // Prefer CSS zoom in Chromium (most reliable for clickable areas)
   const root = document.getElementById("appRoot") || document.body;
-  try {
-    // zoom works in Chrome/Edge; Safari ignores it (fine)
-    root.style.zoom = String(s);
-    // Also set CSS variable for any transforms
-    document.documentElement.style.setProperty("--uiScale", "1");
-  } catch (_) {
-    document.documentElement.style.setProperty("--uiScale", String(s));
-  }
-
+  try { root.style.zoom = String(s); } catch(e) {}
+  document.documentElement.style.setProperty("--uiScale", String(s));
   if (uiScaleReadout) uiScaleReadout.textContent = `${Math.round(s*100)}%`;
-  setTimeout(() => { if (typeof resizeCanvasToDisplaySize === "function") resizeCanvasToDisplaySize(); }, 0);
+  setTimeout(() => { try { resizeCanvasToDisplaySize(); } catch(_){} }, 50);
 }
 if (uiScaleEl) uiScaleEl.addEventListener("input", applyUiScale);
 applyUiScale();
@@ -668,29 +670,36 @@ function pickBestPositionForMidi(midi, maxFret) {
 
 
 
+
 function drawGHView(nowSec, midiData, w, h, maxFret, hitWindowSec) {
-  // Pseudo-3D "highway" (trapezoid) with moving asphalt texture.
-  const lanes = ["E","A","D","G"]; // left->right low->high
+  // Pseudo-3D "highway" with better perspective + lane colors + sustain tails.
+  const lanes = ["E","A","D","G"]; // low->high
+  const laneColors = {
+    E: "rgba(76, 195, 255, 0.95)",
+    A: "rgba(120, 255, 140, 0.95)",
+    D: "rgba(255, 220, 90, 0.95)",
+    G: "rgba(255, 120, 200, 0.95)",
+  };
+
   const topY = 40;
-  const bottomY = h - 40;
+  const bottomY = h - 55;
+  const cx = w / 2;
 
-  const topW = Math.min(w*0.42, 420);
-  const botW = Math.min(w*0.86, 880);
-  const cx = w/2;
+  const topW = Math.min(w * 0.40, 520);
+  const botW = Math.min(w * 0.92, 980);
 
-  const topL = cx - topW/2;
-  const topR = cx + topW/2;
-  const botL = cx - botW/2;
-  const botR = cx + botW/2;
+  const hitY = bottomY - 26;
+  const pxPerSec = 260; // fall speed feel
 
-  const hitY = bottomY - 18;
-  const pxPerSec = 250; // fall speed feel
-
-  // Background vignette
+  // Background
   ctx.fillStyle = "#07070a";
   ctx.fillRect(0,0,w,h);
 
-  // Road trapezoid clip
+  // Road trapezoid
+  const topL = cx - topW/2, topR = cx + topW/2;
+  const botL = cx - botW/2, botR = cx + botW/2;
+
+  // Clip to road
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(topL, topY);
@@ -702,67 +711,94 @@ function drawGHView(nowSec, midiData, w, h, maxFret, hitWindowSec) {
 
   // Asphalt texture (scrolling)
   if (!asphaltPattern) buildAsphaltPattern();
-  ctx.fillStyle = asphaltPattern;
-  // Scroll pattern based on time to create motion illusion
-  const scroll = (nowSec * pxPerSec * 0.55) % 256;
+  const scroll = (nowSec * 190) % 256;
+  ctx.setTransform(1,0,0,1,0,0);
   ctx.translate(0, scroll);
-  ctx.fillRect(0, -256, w, h + 512);
+  ctx.fillStyle = asphaltPattern;
+  ctx.fillRect(0, -256, w, (bottomY - topY) + 512);
   ctx.setTransform(1,0,0,1,0,0);
 
-  // Darken toward horizon
-  const grad = ctx.createLinearGradient(0, topY, 0, bottomY);
-  grad.addColorStop(0, "rgba(0,0,0,0.55)");
-  grad.addColorStop(1, "rgba(0,0,0,0.15)");
-  ctx.fillStyle = grad;
+  // Lighting gradient (horizon darker)
+  const g = ctx.createLinearGradient(0, topY, 0, bottomY);
+  g.addColorStop(0, "rgba(0,0,0,0.62)");
+  g.addColorStop(0.65, "rgba(0,0,0,0.25)");
+  g.addColorStop(1, "rgba(0,0,0,0.10)");
+  ctx.fillStyle = g;
   ctx.fillRect(0, topY, w, bottomY-topY);
 
-  // Lane lines (perspective)
-  ctx.strokeStyle = "rgba(255,255,255,0.22)";
-  ctx.lineWidth = 2;
-  for (let k=1;k<4;k++){
-    const t = k/4;
-    const xTop = topL + t*topW;
-    const xBot = botL + t*botW;
+  // Lane separators + subtle colored glow strips
+  for (let k=0;k<4;k++){
+    const t0 = k/4, t1 = (k+1)/4;
+    const xTop0 = topL + t0*topW;
+    const xTop1 = topL + t1*topW;
+    const xBot0 = botL + t0*botW;
+    const xBot1 = botL + t1*botW;
+
+    const lane = lanes[k];
+    // glow strip near bottom
+    ctx.fillStyle = laneColors[lane];
+    ctx.globalAlpha = 0.10;
     ctx.beginPath();
-    ctx.moveTo(xTop, topY);
-    ctx.lineTo(xBot, bottomY);
-    ctx.stroke();
+    ctx.moveTo(xBot0, hitY+10);
+    ctx.lineTo(xBot1, hitY+10);
+    ctx.lineTo(xBot1, bottomY);
+    ctx.lineTo(xBot0, bottomY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // separators
+    if (k>0){
+      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(xTop0, topY);
+      ctx.lineTo(xBot0, bottomY);
+      ctx.stroke();
+    }
   }
 
-  // Center dashed line "speed" effect
-  ctx.strokeStyle = "rgba(255,255,255,0.18)";
+  // Perspective dashed center
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
   ctx.lineWidth = 3;
-  const dashLen = 24;
-  const gap = 18;
-  const offset = (nowSec * 220) % (dashLen + gap);
-  ctx.setLineDash([dashLen, gap]);
-  ctx.lineDashOffset = -offset;
+  ctx.setLineDash([22, 16]);
+  ctx.lineDashOffset = -(nowSec*220)%38;
   ctx.beginPath();
   ctx.moveTo(cx, topY);
   ctx.lineTo(cx, bottomY);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Hit line glow
-  ctx.fillStyle = "rgba(255,255,255,0.25)";
+  // Hit line + glow
+  ctx.fillStyle = "rgba(255,255,255,0.22)";
   ctx.fillRect(botL, hitY, botW, 3);
   ctx.fillStyle = "rgba(255,255,255,0.08)";
-  ctx.fillRect(botL, hitY-8, botW, 18);
+  ctx.fillRect(botL, hitY-12, botW, 26);
 
   ctx.restore();
 
-  // Lane labels near bottom (outside clip so readable)
-  ctx.fillStyle = "#e6e6e6";
-  ctx.font = "14px -apple-system, system-ui";
+  // Big lane letters at bottom (outside road for readability)
+  ctx.font = "700 18px -apple-system, system-ui";
   for (let k=0;k<4;k++){
-    const t = (k+0.5)/4;
-    const xBot = botL + t*botW;
-    ctx.fillText(lanes[k], xBot-4, bottomY + 22);
+    const lane = lanes[k];
+    const x = (cx - botW/2) + (k+0.5)*(botW/4);
+    ctx.fillStyle = laneColors[lane];
+    ctx.globalAlpha = 0.95;
+    ctx.fillText(lane, x-6, bottomY + 30);
+    ctx.globalAlpha = 1;
   }
 
-  // Map time->y (perspective): near notes are bigger and lower, far notes smaller/higher
+  // Helper: perspective mapping
+  function roadAtY(y){
+    const p = (y - topY) / (bottomY - topY);
+    const ww = topW + p*(botW-topW);
+    const ll = cx - ww/2;
+    return { p: Math.max(0, Math.min(1, p)), w: ww, l: ll };
+  }
+
+  // Draw events within window
   const windowStart = nowSec - 0.15;
-  const windowEnd = nowSec + 4.8;
+  const windowEnd = nowSec + 5.0;
 
   let currentTarget = null;
 
@@ -770,59 +806,82 @@ function drawGHView(nowSec, midiData, w, h, maxFret, hitWindowSec) {
     if (ev.time < windowStart || ev.time > windowEnd) continue;
     const best = pickBestPositionForMidi(ev.midi, maxFret);
     if (!best) continue;
+
     const laneIdx = lanes.indexOf(best.string);
     if (laneIdx < 0) continue;
 
-    const dt = ev.time - nowSec; // seconds ahead
-    // y position: dt=0 at hit line, dt>0 above
+    const dt = ev.time - nowSec;
     const y = hitY - dt * pxPerSec;
 
-    // Perspective factor based on y between topY..bottomY
-    const p = (y - topY) / (bottomY - topY);
-    const roadW = topW + p * (botW - topW);
-    const roadL = cx - roadW/2;
+    const { p, w: rw, l: rl } = roadAtY(y);
+    const laneW = rw / 4;
+    const x = rl + laneIdx*laneW + laneW*0.18;
+    const noteW = laneW*0.64;
 
-    const laneW = roadW / 4;
-    const x = roadL + laneIdx * laneW + laneW*0.12;
-    const noteW = laneW*0.76;
+    // sustain tail length based on duration
+    const dur = Math.max(0.05, ev.duration || 0.1);
+    const tailH = Math.min((dur * pxPerSec), (bottomY - y) + 40);
+    const yTop = y - 18 - tailH;
 
     const near = Math.abs(ev.time - nowSec) <= hitWindowSec;
     if (near && !currentTarget) currentTarget = ev;
 
-    const baseH = 18 + p*10;
-    const noteH = Math.max(14, Math.min(70, (ev.duration * pxPerSec) * 0.9));
-
-    // Clip notes to road
+    // Clip notes to road so they don't float
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(topL, topY);
-    ctx.lineTo(topR, topY);
-    ctx.lineTo(botR, bottomY);
-    ctx.lineTo(botL, bottomY);
+    ctx.moveTo(cx-topW/2, topY);
+    ctx.lineTo(cx+topW/2, topY);
+    ctx.lineTo(cx+botW/2, bottomY);
+    ctx.lineTo(cx-botW/2, bottomY);
     ctx.closePath();
     ctx.clip();
 
-    // Note style (pretty + readable)
-    ctx.fillStyle = near ? "rgba(240,240,240,0.95)" : "rgba(170,170,170,0.75)";
-    ctx.fillRect(x, y - noteH, noteW, noteH);
+    // Tail (gradient)
+    const c = laneColors[best.string];
+    const tailGrad = ctx.createLinearGradient(0, yTop, 0, y-6);
+    tailGrad.addColorStop(0, c.replace("0.95", "0.00"));
+    tailGrad.addColorStop(1, c.replace("0.95", near ? "0.45" : "0.28"));
+    ctx.fillStyle = tailGrad;
+    roundRect(ctx, x + noteW*0.35, yTop, noteW*0.30, tailH, 10 + p*8);
+    ctx.fill();
 
-    ctx.strokeStyle = "rgba(0,0,0,0.25)";
-    ctx.strokeRect(x, y - noteH, noteW, noteH);
+    // Note "gem" (rounded pill)
+    const gemH = 22 + p*10;
+    const gemY = y - gemH;
+    // Shadow
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = "#000";
+    roundRect(ctx, x+2, gemY+3, noteW, gemH, 12 + p*10);
+    ctx.fill();
+    ctx.globalAlpha = 1;
 
-    ctx.fillStyle = "rgba(20,20,20,0.95)";
-    ctx.font = `${12 + p*3}px -apple-system, system-ui`;
-    ctx.fillText(`${best.string}${best.fret}`, x + 8, y - noteH + (16 + p*4));
+    ctx.fillStyle = c;
+    roundRect(ctx, x, gemY, noteW, gemH, 12 + p*10);
+    ctx.fill();
+
+    // inner highlight
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = "#fff";
+    roundRect(ctx, x+4, gemY+4, noteW-8, gemH*0.35, 10 + p*8);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Text label
+    ctx.fillStyle = "rgba(10,10,10,0.88)";
+    ctx.font = `${Math.round(12 + p*5)}px -apple-system, system-ui`;
+    ctx.fillText(`${best.string}${best.fret}`, x + 10, gemY + gemH*0.68);
 
     ctx.restore();
   }
 
-  // HUD hint
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  // HUD tip
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
   ctx.font = "12px -apple-system, system-ui";
-  ctx.fillText("Tip: use Song sync (sec) to align audio ⇄ notes, and Loop A–B for practice.", 12, 18);
+  ctx.fillText("Tip: Use UI scale to zoom; Song sync aligns audio; Loop A–B for drilling sections.", 12, 18);
 
   return currentTarget;
 }
+
 
 
 function drawTabView(nowSec, midiData, w, h, centerX, pxPerSec, maxFret, hitWindowSec) {
@@ -1126,3 +1185,5 @@ if (btnFullscreen) {
     }
   });
 }
+
+const buildBadge = document.getElementById("buildBadge"); if (buildBadge) buildBadge.textContent = `Build v21 • 2025-12-26 22:39 UTC`;
