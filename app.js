@@ -1,20 +1,4 @@
-
-// --- Update hygiene (GitHub Pages): disable offline caching to avoid stale builds ---
-async function unregisterExistingServiceWorkers() {
-  try {
-    if ("serviceWorker" in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      for (const r of regs) await r.unregister();
-    }
-    if ("caches" in window) {
-      const keys = await caches.keys();
-      for (const k of keys) {
-        if (k.startsWith("basscoach-")) await caches.delete(k);
-      }
-    }
-  } catch (e) {}
-}
-unregisterExistingServiceWorkers();
+const ASSET_VERSION = "25-1766800777";
 
 function roundRect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w/2, h/2);
@@ -413,7 +397,8 @@ function loopPitch() {
 btnStartAudio.addEventListener("click", async () => {
   try {
     await startMic();
-    );
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
     }
   } catch (e) {
     micStatus.textContent = "Mic: error";
@@ -440,7 +425,7 @@ if (audioFile) {
 async function loadMidiFromFile(file) {
   if (!file) return;
   try {
-    const { parseMidiFile } = await import("./midi.js");
+    const { parseMidiFile } = await import(`./midi.js?v=${ASSET_VERSION}`);
     midiData = await parseMidiFile(file);
 
     const maxFret = parseInt(maxFretEl.value,10) || 20;
